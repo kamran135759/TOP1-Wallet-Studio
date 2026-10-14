@@ -4,35 +4,419 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>TOP1 Wallet Studio</title>
+  <meta name="theme-color" content="#0b1020">
+  <title>TOP1 Auto Token Studio</title>
+
   <style>
+    * { box-sizing: border-box; }
     body {
       margin: 0;
-      min-height: 100vh;
+      font-family: Arial, sans-serif;
+      background: #080d1b;
+      color: #f3f6ff;
+    }
+    header {
+      padding: 22px 16px;
+      border-bottom: 1px solid #273451;
+      text-align: center;
+    }
+    .logo {
+      width: 54px;
+      height: 54px;
+      margin: auto auto 10px;
       display: grid;
       place-items: center;
-      background: #0b1020;
-      color: white;
-      font: 16px system-ui, sans-serif;
+      border-radius: 15px;
+      background: linear-gradient(135deg,#9b7bff,#39d9ff);
+      color: #08101f;
+      font-size: 23px;
+      font-weight: 900;
     }
-    main {
-      max-width: 420px;
-      margin: 20px;
-      padding: 28px;
-      text-align: center;
-      background: #141c30;
+    h1 { font-size: 25px; margin: 8px 0; }
+    .sub { color: #a9b5d0; font-size: 13px; }
+    main { max-width: 600px; margin: auto; padding: 18px; }
+    .card {
+      background: #111a2d;
       border: 1px solid #293653;
-      border-radius: 18px;
+      border-radius: 17px;
+      padding: 18px;
+      margin-bottom: 16px;
     }
-    h1 { color: #83a5ff; }
+    h2 { font-size: 17px; margin: 0 0 15px; }
+    button {
+      width: 100%;
+      border: 0;
+      border-radius: 11px;
+      padding: 14px;
+      margin: 6px 0;
+      background: #8d79ff;
+      color: white;
+      font-size: 15px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    button.secondary { background: #263451; }
+    button:disabled { opacity: .6; }
+    label {
+      display: block;
+      color: #b6c3dc;
+      font-size: 13px;
+      margin: 13px 0 6px;
+    }
+    input {
+      width: 100%;
+      padding: 12px;
+      border-radius: 9px;
+      border: 1px solid #344361;
+      background: #0a1222;
+      color: white;
+      font-size: 15px;
+    }
+    .value {
+      overflow-wrap: anywhere;
+      color: #55e2cb;
+      font-size: 14px;
+      margin-top: 8px;
+    }
+    .status {
+      color: #c1cbe0;
+      font-size: 13px;
+      line-height: 1.6;
+      overflow-wrap: anywhere;
+    }
+    .warning {
+      color: #ffce79;
+      font-size: 12px;
+      line-height: 1.6;
+    }
+    footer {
+      text-align: center;
+      color: #7584a2;
+      font-size: 12px;
+      padding: 10px 20px 28px;
+    }
   </style>
 </head>
+
 <body>
-  <main>
-    <h1>TOP1 Studio</h1>
-    <p>New GitHub Pages site is ready.</p>
-    <p>Wallet connection setup comes next.</p>
-  </main>
+<header>
+  <div class="logo">T1</div>
+  <h1>TOP1 Auto Token Studio</h1>
+  <div class="sub">Wallet connection and token workspace</div>
+</header>
+
+<main>
+  <section class="card">
+    <h2>Wallet</h2>
+    <button id="connectBtn">Connect Wallet</button>
+    <button id="disconnectBtn" class="secondary">Disconnect / Reset Display</button>
+    <div class="status" id="status" aria-live="polite">
+      Not connected. Connect your wallet to continue.
+    </div>
+    <div class="value" id="address"></div>
+    <div class="value" id="balance"></div>
+  </section>
+
+  <section class="card">
+    <h2>BNB Smart Chain</h2>
+    <div class="status" id="network">
+      Network has not been checked.
+    </div>
+    <button class="secondary" id="checkBtn">Check Network and Balance</button>
+    <button class="secondary" id="switchBtn">Request BNB Smart Chain</button>
+  </section>
+
+  <section class="card">
+    <h2>TOP1 Token Details</h2>
+
+    <label for="tokenName">Token name</label>
+    <input id="tokenName" value="TOP1" maxlength="40">
+
+    <label for="tokenSymbol">Token symbol</label>
+    <input id="tokenSymbol" value="TOP1" maxlength="12">
+
+    <label for="tokenSupply">Total supply</label>
+    <input id="tokenSupply" value="1000000" inputmode="decimal">
+
+    <label for="tokenDecimals">Decimals</label>
+    <input id="tokenDecimals" value="18" inputmode="numeric">
+
+    <button id="validateBtn">Validate Token Settings</button>
+    <div class="status" id="tokenStatus">
+      These fields are settings only. No token has been deployed.
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Important</h2>
+    <p class="warning">
+      This page provides wallet connection and basic checks only.
+      It does not deploy a smart contract, verify source code, or register
+      a token logo. Never enter your recovery phrase or private key on this site.
+      Deployment requires a compiled contract and a transaction approved in
+      your wallet, including network gas fees.
+    </p>
+  </section>
+</main>
+
+<footer>TOP1 Studio · Use only with a wallet you control.</footer>
+
+<script src="https://cdn.reown.com/appkit/latest/wagmi.js"></script>
+
+<script>
+(() => {
+  "use strict";
+
+  const PROJECT_ID = "a6f890ea7b1d6e1cc4aea51ebe5e1120";
+  const CHAIN_ID = "0x38";
+  const CHAIN_DECIMAL = 56;
+
+  const $ = id => document.getElementById(id);
+
+  let appKit = null;
+  let provider = null;
+  let account = "";
+  let connected = false;
+
+  function message(text) {
+    $("status").textContent = text;
+  }
+
+  function shortAddress(address) {
+    return address
+      ? address.slice(0, 6) + "..." + address.slice(-4)
+      : "";
+  }
+
+  function formatWei(hexValue) {
+    const wei = BigInt(hexValue);
+    const whole = wei / (10n ** 18n);
+    const fraction = (wei % (10n ** 18n))
+      .toString().padStart(18, "0")
+      .slice(0, 6);
+    return whole.toString() + "." + fraction + " BNB";
+  }
+
+  async function rpc(method, params = []) {
+    if (!provider) throw new Error("Wallet provider is not ready.");
+    return provider.request({ method, params });
+  }
+
+  async function updateWallet() {
+    if (!provider || !connected || !account) {
+      $("address").textContent = "";
+      $("balance").textContent = "";
+      return;
+    }
+
+    $("address").textContent = "Address: " + account;
+
+    try {
+      const chainId = await rpc("eth_chainId");
+
+      if (chainId.toLowerCase() !== CHAIN_ID) {
+        $("network").textContent =
+          "Wrong network. Please select BNB Smart Chain (Chain ID 56).";
+        $("balance").textContent = "";
+        return;
+      }
+
+      const balance = await rpc("eth_getBalance", [account, "latest"]);
+      $("balance").textContent = "Wallet balance: " + formatWei(balance);
+      $("network").textContent =
+        "Connected to BNB Smart Chain Mainnet (Chain ID 56).";
+    } catch (error) {
+      $("balance").textContent = "";
+      message("Could not read wallet details: " + error.message);
+    }
+  }
+
+  async function connectWallet() {
+    try {
+      $("connectBtn").disabled = true;
+      message("Opening wallet connection...");
+
+      if (!window.AppKit || !window.AppKit.createAppKit) {
+        throw new Error(
+          "Reown library did not load. Check your internet connection and reload."
+        );
+      }
+
+      if (!appKit) {
+        const networks = [
+          {
+            id: 56,
+            caipNetworkId: "eip155:56",
+            chainNamespace: "eip155",
+            name: "BNB Smart Chain",
+            nativeCurrency: {
+              name: "BNB",
+              symbol: "BNB",
+              decimals: 18
+            },
+            rpcUrls: {
+              default: {
+                http: ["https://bsc-dataseed.binance.org/"]
+              }
+            },
+            blockExplorers: {
+              default: {
+                name: "BscScan",
+                url: "https://bscscan.com"
+              }
+            }
+          }
+        ];
+
+        appKit = window.AppKit.createAppKit({
+          projectId: PROJECT_ID,
+          networks,
+          defaultNetwork: networks[0],
+          metadata: {
+            name: "TOP1 Auto Token Studio",
+            description: "TOP1 wallet connection interface",
+            url: location.origin + location.pathname,
+            icons: []
+          },
+          features: {
+            analytics: false,
+            email: false,
+            socials: false,
+            swaps: false,
+            onramp: false
+          }
+        });
+      }
+
+      await appKit.open();
+
+      message(
+        "Choose a wallet in the connection window and approve connection there. " +
+        "If it does not appear, reload the page and try again."
+      );
+
+      // AppKit opens the wallet modal. The page does not ask for secret keys.
+      const universal = appKit.getWalletProvider
+        ? appKit.getWalletProvider()
+        : null;
+
+      if (universal && typeof universal.request === "function") {
+        provider = universal;
+      }
+
+    } catch (error) {
+      message("Connection could not start: " + error.message);
+    } finally {
+      $("connectBtn").disabled = false;
+    }
+  }
+
+  async function checkWallet() {
+    try {
+      if (!provider && window.ethereum) {
+        provider = window.ethereum;
+      }
+
+      if (!provider) {
+        throw new Error(
+          "No injected wallet provider found. Use the Reown Connect Wallet button."
+        );
+      }
+
+      const accounts = await rpc("eth_accounts");
+      if (accounts && accounts.length) {
+        account = accounts[0];
+        connected = true;
+      }
+
+      if (!connected || !account) {
+        throw new Error("Connect your wallet first.");
+      }
+
+      await updateWallet();
+      message("Wallet check completed.");
+    } catch (error) {
+      message(error.message);
+    }
+  }
+
+  async function switchNetwork() {
+    try {
+      if (!provider && window.ethereum) provider = window.ethereum;
+      if (!provider) throw new Error("Connect your wallet first.");
+
+      await rpc("wallet_switchEthereumChain", [
+        { chainId: CHAIN_ID }
+      ]);
+
+      $("network").textContent =
+        "BNB Smart Chain selected. Checking wallet...";
+      await checkWallet();
+    } catch (error) {
+      if (error.code === 4902) {
+        message("BNB Smart Chain is not configured in this wallet. Add it in the wallet app.");
+      } else {
+        message("Network switch request: " + error.message);
+      }
+    }
+  }
+
+  function resetDisplay() {
+    account = "";
+    connected = false;
+    provider = null;
+    $("address").textContent = "";
+    $("balance").textContent = "";
+    $("network").textContent = "Network has not been checked.";
+    message("Display reset. This does not necessarily disconnect the wallet inside its app.");
+  }
+
+  function validateToken() {
+    const name = $("tokenName").value.trim();
+    const symbol = $("tokenSymbol").value.trim();
+    const supply = $("tokenSupply").value.trim();
+    const decimals = $("tokenDecimals").value.trim();
+
+    const validSupply =
+      /^\d+(\.\d+)?$/.test(supply) &&
+      Number(supply) > 0 &&
+      Number.isFinite(Number(supply));
+
+    const validDecimals = /^\d+$/.test(decimals) &&
+      Number(decimals) >= 0 && Number(decimals) <= 18;
+
+    if (!name || !symbol || !validSupply || !validDecimals) {
+      $("tokenStatus").textContent =
+        "Invalid settings. Enter a name, symbol, positive supply, and decimals from 0 to 18.";
+      return;
+    }
+
+    $("tokenStatus").textContent =
+      "Settings valid: " + name + " (" + symbol + "), supply " +
+      supply + ", decimals " + decimals +
+      ". This is validation only; no contract was deployed.";
+  }
+
+  $("connectBtn").addEventListener("click", connectWallet);
+  $("checkBtn").addEventListener("click", checkWallet);
+  $("switchBtn").addEventListener("click", switchNetwork);
+  $("disconnectBtn").addEventListener("click", resetDisplay);
+  $("validateBtn").addEventListener("click", validateToken);
+
+  if (window.ethereum) {
+    provider = window.ethereum;
+
+    window.ethereum.on?.("accountsChanged", accounts => {
+      account = accounts && accounts.length ? accounts[0] : "";
+      connected = Boolean(account);
+      updateWallet();
+    });
+
+    window.ethereum.on?.("chainChanged", () => {
+      updateWallet();
+    });
+  }
+})();
+</script>
 </body>
-  </html>
-  
+</html>
